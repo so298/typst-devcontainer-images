@@ -1,0 +1,50 @@
+name: Docker build and push
+
+on:
+  schedule:
+    - cron: "0 0 1 * *" # Update monthly
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**/*"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target:
+          - base
+          - extra-fonts
+          - bare-extra-fonts
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # To build arm64 images on x86_64 host, use QEMU.
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # See https://github.com/docker/login-action#github-container-registry
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./
+          file: ./src/${{ matrix.target }}/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ vars.GHCR_PATH }}/${{ vars.IMAGE_NAME }}:${{ matrix.target }}
